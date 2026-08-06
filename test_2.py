@@ -1,4 +1,4 @@
-from sh_connection import Connection
+from SentinelHub.sh_connection import Connection
 from utils import plot_image
 
 import numpy as np

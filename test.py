@@ -1,5 +1,5 @@
 # test from jupyterhub
-from sh_connection import Connection
+from SentinelHub.sh_connection import Connection
 
 import matplotlib.pyplot as plt
 import pandas as pd

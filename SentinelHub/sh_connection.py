@@ -1,7 +1,3 @@
-"""
-Conexiune cu SentinelHubCatalog
-"""
-
 from sentinelhub import SHConfig, SentinelHubCatalog
 from dotenv import load_dotenv
 import os

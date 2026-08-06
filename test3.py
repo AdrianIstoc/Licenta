@@ -1,5 +1,5 @@
 from utils import plot_image
-from sh_connection import SentinelHubConnection
+from SentinelHub.sh_connection import SentinelHubConnection
 from sentinelhub import (
     DataCollection,
     SentinelHubRequest,
@@ -8,13 +8,13 @@ from sentinelhub import (
     CRS,
     MimeType,
 )
-from sh_indices import (
+from SentinelHub.sh_indices import (
     calc_ndvi,
     calc_ndwi,
     calc_ndbi
 )
-import sh_collections
-import sh_download
+import SentinelHub.sh_collections as sh_collections
+import SentinelHub.sh_download as sh_download
 import matplotlib.pyplot as plt
 import numpy as np
 

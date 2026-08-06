@@ -1,7 +1,8 @@
-from GUI.gui_test import test
+from App.application import Application
 
 def main():
-    test()
+    app = Application()
+    app.mainloop()
 
 if __name__ == "__main__":
     main()
