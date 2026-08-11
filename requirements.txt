@@ -2,3 +2,4 @@ tkintermapview==1.30
 matplotlib==3.11.1
 sentinelhub==3.11.5
 python-dotenv==1.2.2
+tkcalendar==1.6.1

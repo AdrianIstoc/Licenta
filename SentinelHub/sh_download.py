@@ -4,6 +4,18 @@ from sentinelhub import (
     bbox_to_dimensions
 )
 
+def choose_resolution(bbox, resolution, max_pixels=2000):
+    resolution = resolution
+
+    width, height = bbox_to_dimensions(bbox=bbox, resolution=resolution)
+
+    while width>max_pixels or height>max_pixels:
+        resolution *= 2
+
+        width,height= bbox_to_dimensions(bbox=bbox, resolution=resolution)
+
+    return resolution
+
 def download(
         config,
         collection,
@@ -23,7 +35,7 @@ def download(
         }
     
     if mosaicking_order is not None:
-        input_param["mosaiking_order"] = mosaicking_order
+        input_param["mosaicking_order"] = mosaicking_order
 
     if maxcc is not None:
         input_param["maxcc"] = maxcc
@@ -107,6 +119,7 @@ def download_bands(
         data_mask=data_mask,
         sample_type=sample_type
     )
+    resolution = choose_resolution(bbox=bbox, resolution=resolution)
     # print (evalscript)
     return download(
         config=config,
