@@ -80,11 +80,11 @@ class VegetationAnalysis:
                     print(f"No valid vegetation for {period_start}")
                     continue
 
-                plt.figure(figsize=(8,6))
-                plt.imshow(masked_ndvi, cmap="RdYlGn", vmin=-1, vmax=1)
-                plt.colorbar(label="NDVI")
-                plt.title("NDVI")
-                plt.show()
+                # plt.figure(figsize=(8,6))
+                # plt.imshow(masked_ndvi, cmap="RdYlGn", vmin=-1, vmax=1)
+                # plt.colorbar(label="NDVI")
+                # plt.title("NDVI")
+                # plt.show()
 
 
                 mean_ndvi = self.calculate_mean_ndvi(vegetation_ndvi)

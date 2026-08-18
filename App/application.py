@@ -7,11 +7,18 @@ from sentinelhub import (
     CRS
 )
 from SentinelHub.sh_collections import get_sentinel2_l2a
+from SentinelHub.sh_download import (
+    download_rgb_data,
+    download_ndvi_data,
+)
+from utils import graph_data, plot_image
 
 
 class Application(tk.Tk):
     def __init__(self, config):
         super().__init__()
+
+        self.download_option = tk.StringVar(value="None")
 
         self.title("Titlu obscur") #Rename window
         self.geometry("1280x720")
@@ -19,6 +26,7 @@ class Application(tk.Tk):
         self.grid_rowconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=0)
         self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=0)
         self.create_widgets()
 
         self.config = config
@@ -35,30 +43,123 @@ class Application(tk.Tk):
         self.start_date = None
         self.end_date = None
 
+        self.downloaded_data = None
+
+
     def create_widgets(self):
         self.toolbar = tk.Frame(self, height=30, bd=2, relief="raised")
-        self.toolbar.grid(row=0,column=0,sticky="ew")
-
-        self.status_label = tk.Label(self, text="", anchor="w", bd=1, relief="sunken")
-        self.status_label.grid(row=2, column=0, sticky="ew")
-
-        self.select_button = tk.Button(self.toolbar, text="Select", command=self.toggle_area_selection)
-        self.select_button.pack(side="left")
-
-        self.date_button = tk.Button(self.toolbar, text="Date", command=self.popupDate)
-        self.date_button.pack(side="right")
-
-        self.analysis_button = tk.Button(self.toolbar, text="Analysis", command = self.print_analysis)
-        self.analysis_button.pack(side="left")
+        self.toolbar.grid(row=0,column=0,columnspan=2,sticky="ew")
 
         self.map = TkinterMapView(self)
         self.map.grid(row=1,column=0,sticky="nsew")
         self.map.set_position(46.9973931, 26.8239746) #Romania-Pildesti
         self.map.set_zoom(14)
+        
+        self.side_menu = tk.Frame(self, width=250, bd=2, relief="raised")
+        self.side_menu.grid(row=1, column=1, sticky="ns")
+
+        self.status_label = tk.Label(self, text="", anchor="w", bd=1, relief="sunken")
+        self.status_label.grid(row=2, column=0,columnspan=2, sticky="ew")
+
+
+        self.select_button = tk.Button(self.toolbar, text="Select", command=self.toggle_area_selection)
+        self.select_button.pack(side="left")
+
+        self.download_button = tk.Button(self.toolbar, text="Download", command=self.download_selected_data)
+        self.download_button.pack(side="left")
+
+        self.graph_button = tk.Button(self.toolbar, text="Graph", command=self.graph_data)
+        self.graph_button.pack(side="left")
+
+        self.print_image = tk.Button(self.toolbar, text="Image", command=self.show_image)
+        self.print_image.pack(side="left")
+
+        self.analysis_button = tk.Button(self.toolbar, text="Analysis", command = self.print_analysis)
+        self.analysis_button.pack(side="left")
+
+
+        self.label_start = tk.Label(self.side_menu, text="Start date")
+        self.label_start.pack()
+
+        self.calendar_start = Calendar(self.side_menu, selectmode="day")
+        self.calendar_start.pack()
+
+        self.label_end = tk.Label(self.side_menu, text="End date")
+        self.label_end.pack()
+
+        self.calendar_end = Calendar(self.side_menu, selectmode="day")
+        self.calendar_end.pack()
+
+        self.confirm_date_button = tk.Button(self.side_menu, text="Confirm date", command=self.confirmDate)
+        self.confirm_date_button.pack()
+
+        self.option_label = tk.Label(self.side_menu, text="Download:")
+        self.option_label.pack(pady=(20, 5))
+
+        self.rgb_radio = tk.Radiobutton(self.side_menu, text="RGB", variable=self.download_option, value="RGB")
+        self.rgb_radio.pack(anchor="w")
+
+        self.ndvi_radio = tk.Radiobutton(self.side_menu, text="NDVI", variable=self.download_option, value="NDVI")
+        self.ndvi_radio.pack(anchor="w")
+
+    def show_image(self):
+        if self.downloaded_data is None:
+            self.show_status(text="No data to show!", duration=3000)
+            return
+
+        plot_image(self.downloaded_data)
+
+    def graph_data(self):
+        if self.downloaded_data is None:
+            self.show_status(text="No data to graph!", duration=3000)
+            return
+        elif self.downloaded_data["option"] == "RGB":
+            self.show_status(text="Cannot graph RGB!", duration=3000)
+            return
+
+        dates = [result["date"] for result in self.downloaded_data["results"]]
+        ndvi = [result["mean_ndvi"] for result in self.downloaded_data["results"]]
+        percentage = [result["vegetation_percentage"] for result in self.downloaded_data["results"]]
+
+        graph_data(dates=dates, indice=ndvi, indice_name=self.downloaded_data["option"], percentage=percentage)
+
+    def download_selected_data(self):
+        if self.download_option.get() == "None":
+            self.show_status(text="No download option selected!", duration=3000)
+            return
+        elif self.starting_point is None:
+            self.show_status(text="No selected are!", duration=3000)
+            return
+        elif self.start_date is None:
+            self.show_status(text="No time window selected!", duration=3000)
+            return
+        elif self.start_date > self.end_date:
+            self.show_status(text="Starting date must be a date befor the end date!", duration=3000)
+            return
+        
+        bbox = BBox(bbox=[self.starting_point[1], self.starting_point[0], self.current_point[1], self.current_point[0]], crs=CRS.WGS84)
+
+        match self.download_option.get():
+            case "RGB":
+                self.downloaded_data = download_rgb_data(config=self.config, collection=self.collection, bbox=bbox, start_date=self.start_date, end_date=self.end_date)
+                print(self.downloaded_data)
+            case "NDVI":
+                self.downloaded_data = download_ndvi_data(config=self.config, collection=self.collection, bbox=bbox, start_date=self.start_date, end_date=self.end_date)
+                print(self.downloaded_data)
+
+        self.show_status(text="!!!Data downloaded!!!")
+
+
+    def confirmDate(self):
+        self.start_date = self.calendar_start.selection_get()
+        self.end_date = self.calendar_end.selection_get()
+        print(self.start_date)
+        print(self.end_date)
+
+
+        
 
     def print_analysis(self):
-        if self.start_date is None or self.starting_point is None:
-            return
         bbox = BBox(bbox=[self.starting_point[1], self.starting_point[0], self.current_point[1], self.current_point[0]], crs=CRS.WGS84)
 
         analysis = VegetationAnalysis(config=self.config, collection=self.collection, bbox=bbox, start_date=self.start_date, end_date=self.end_date)
@@ -66,33 +167,6 @@ class Application(tk.Tk):
         analysis.run()
         print(analysis.results)
         analysis.graph_ndvi()
-
-    def popupDate(self):
-        def print_dates():
-            self.start_date = calendar_start.selection_get()
-            self.end_date = calendar_end.selection_get()
-            print(self.start_date)
-            print(self.end_date)
-            # popupWindow.destroy()
-
-        popupWindow = tk.Toplevel(self)
-        popupWindow.title("Date selection")
-        # popupWindow.grab_set()
-
-        label_start = tk.Label(popupWindow, text="Start Date")
-        label_start.grid(row=0, column=0)
-
-        label_end = tk.Label(popupWindow, text="End Date")
-        label_end.grid(row=0, column=1)
-
-        calendar_start = Calendar(popupWindow, selectmode="day", cursor="hand1", year=2020, month=2, day=5)
-        calendar_start.grid(row=1, column=0)
-
-        calendar_end = Calendar(popupWindow, selectmode="day", cursor="hand1", year=2021, month=2, day=5)
-        calendar_end.grid(row=1, column=1)
-
-        button_date = tk.Button(popupWindow, text="Ok", command=print_dates)
-        button_date.grid(row=2, column=0)
 
 
     def toggle_area_selection(self):
@@ -105,20 +179,18 @@ class Application(tk.Tk):
         else:
             self.select_button.config(text="Select", relief=tk.RAISED)
             self.disable_selection()
-            if self.starting_point is not None:
-                self.show_status("Selection locked.", duration=3000)
 
     def enable_selection(self):
         canvas = self.map.canvas
-        canvas.bind("<ButtonPress-2>", self.on_mouse_down)
-        canvas.bind("<B2-Motion>", self.on_mouse_drag)
-        canvas.bind("<ButtonRelease-2>", self.on_mouse_up)
+        canvas.bind("<ButtonPress-3>", self.on_mouse_down)
+        canvas.bind("<B3-Motion>", self.on_mouse_drag)
+        canvas.bind("<ButtonRelease-3>", self.on_mouse_up)
 
     def disable_selection(self):
         canvas = self.map.canvas
-        canvas.unbind("<ButtonPress-2>")
-        canvas.unbind("<B2-Motion>")
-        canvas.unbind("<ButtonRelease-2>")
+        canvas.unbind("<ButtonPress-3>")
+        canvas.unbind("<B3-Motion>")
+        canvas.unbind("<ButtonRelease-3>")
 
     def on_mouse_down(self, event):
         if not self.selecting_area:
@@ -154,6 +226,8 @@ class Application(tk.Tk):
         self.current_point = self.map.convert_canvas_coords_to_decimal_coords(event.x, event.y)
         self.draw_selection()
 
+        if self.starting_point is not None:
+            self.show_status("Selection locked.", duration=3000)
         print(self.starting_point)
         print(self.current_point)
 

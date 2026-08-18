@@ -1,8 +1,11 @@
+from datetime import date
+from SentinelHub.sh_indices import calculate_ndvi
 from sentinelhub import (
     SentinelHubRequest,
     MimeType,
     bbox_to_dimensions
 )
+import numpy as np
 
 def choose_resolution(bbox, resolution, max_pixels=2000):
     resolution = resolution
@@ -132,3 +135,103 @@ def download_bands(
         mosaicking_order=mosaicking_order,
         maxcc=maxcc
     )
+
+def create_periods(start_date, end_date):
+        periods = []
+
+        current = start_date
+
+        while current < end_date:
+            if current.month==12:
+                next_date = date(current.year+1,1,1)
+            else:
+                next_date = date(current.year, current.month+1,1)
+
+            if next_date>end_date:
+                next_date=end_date
+
+            periods.append((current, next_date))
+
+            current=next_date
+
+        return periods
+
+def download_ndvi_data(config, collection, bbox, start_date, end_date):
+    results = []
+
+    periods = create_periods(start_date=start_date, end_date=end_date)
+
+
+    for period_start, period_end in periods:
+            try:
+                image = download_bands(
+                    config=config,
+                    collection=collection,
+                    bbox=bbox,
+                    time_interval=(period_start, period_end),
+                    bands=["B04", "B08"],
+                    mosaicking_order="leastCC",
+                    maxcc=0.2,
+                    clm=True,
+                    scl=True,
+                    data_mask=True,
+                    sample_type="FLOAT32"
+                )
+                ndvi=calculate_ndvi(image=image)
+
+                slc=image[:,:,3]
+                data_mask=image[:,:,4]
+
+                vegetation_mask=(
+                    (slc == 4) #vegetatie
+                    & (data_mask == 1) #exista valori
+                )
+                masked_ndvi = np.where(vegetation_mask, ndvi, np.nan)
+
+                vegetation_ndvi = ndvi[vegetation_mask]
+                if vegetation_ndvi.size == 0:
+                    print(f"No valid vegetation for {period_start}")
+                    continue
+
+                mean_ndvi = np.nanmean(vegetation_ndvi)
+
+                vegetation_percentage = (np.sum(vegetation_mask)/vegetation_mask.size)*100
+
+                results.append({
+                    "image": masked_ndvi,
+                    "date": period_start,
+                    "mean_ndvi": mean_ndvi,
+                    "vegetation_percentage": vegetation_percentage
+                })
+            except Exception as e:
+                print(f"Faild for {period_start}: {e}")
+
+    return {"option": "NDVI", "results": results}
+
+
+def download_rgb_data(config, collection, bbox, start_date, end_date):
+    results =[]
+
+    periods = create_periods(start_date=start_date, end_date=end_date)
+
+    for period_start, period_end in periods:
+        try:
+            image =download_bands(
+                config=config,
+                collection=collection,
+                bbox=bbox,
+                time_interval=(period_start, period_end),
+                bands=["B04", "B03", "B02"],
+                mosaicking_order="leastCC",
+                maxcc=0.2,
+                sample_type="FLOAT32"
+            )
+
+            results.append({
+                "image": image,
+                "date": period_start
+            })
+        except Exception as e:
+            print(f"Failed for {period_start}: {e}")
+
+    return {"option": "RGB", "results": results}
