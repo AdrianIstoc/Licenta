@@ -6,11 +6,7 @@ from sentinelhub import (
     BBox,
     CRS
 )
-from SentinelHub.sh_collections import get_sentinel2_l2a
-from SentinelHub.sh_download import (
-    download_rgb_data,
-    download_ndvi_data,
-)
+from SentinelHub.sh_download import download_data
 from utils import graph_data, plot_image
 
 
@@ -18,7 +14,11 @@ class Application(tk.Tk):
     def __init__(self, config):
         super().__init__()
 
-        self.download_option = tk.StringVar(value="None")
+        self.download_option = {
+            "RGB": tk.BooleanVar(value=False),
+            "NDVI": tk.BooleanVar(value=False),
+            "Vpr": tk.BooleanVar(value=False),
+        }
 
         self.title("Titlu obscur") #Rename window
         self.geometry("1280x720")
@@ -30,7 +30,6 @@ class Application(tk.Tk):
         self.create_widgets()
 
         self.config = config
-        self.collection = get_sentinel2_l2a(config)
 
         self.dragging_mouse = False
         self.selecting_area = False
@@ -43,7 +42,7 @@ class Application(tk.Tk):
         self.start_date = None
         self.end_date = None
 
-        self.downloaded_data = None
+        self.downloaded_data = {"results": []}
 
 
     def create_widgets(self):
@@ -96,11 +95,14 @@ class Application(tk.Tk):
         self.option_label = tk.Label(self.side_menu, text="Download:")
         self.option_label.pack(pady=(20, 5))
 
-        self.rgb_radio = tk.Radiobutton(self.side_menu, text="RGB", variable=self.download_option, value="RGB")
-        self.rgb_radio.pack(anchor="w")
+        self.rgb_check = tk.Checkbutton(self.side_menu, text="RGB", variable=self.download_option["RGB"])
+        self.rgb_check.pack(anchor="w")
 
-        self.ndvi_radio = tk.Radiobutton(self.side_menu, text="NDVI", variable=self.download_option, value="NDVI")
-        self.ndvi_radio.pack(anchor="w")
+        self.ndvi_check = tk.Checkbutton(self.side_menu, text="NDVI", variable=self.download_option["NDVI"])
+        self.ndvi_check.pack(anchor="w")
+
+        self.vpr_check = tk.Checkbutton(self.side_menu, text="Vegetation %", variable=self.download_option["Vpr"])
+        self.vpr_check.pack(anchor="w")
 
     def show_image(self):
         if self.downloaded_data is None:
@@ -124,7 +126,10 @@ class Application(tk.Tk):
         graph_data(dates=dates, indice=ndvi, indice_name=self.downloaded_data["option"], percentage=percentage)
 
     def download_selected_data(self):
-        if self.download_option.get() == "None":
+        sel = [option for option, variable in self.download_option.items() if variable.get()]
+        print(sel)
+
+        if not any(var.get() for var in self.download_option.values()):
             self.show_status(text="No download option selected!", duration=3000)
             return
         elif self.starting_point is None:
@@ -139,15 +144,10 @@ class Application(tk.Tk):
         
         bbox = BBox(bbox=[self.starting_point[1], self.starting_point[0], self.current_point[1], self.current_point[0]], crs=CRS.WGS84)
 
-        match self.download_option.get():
-            case "RGB":
-                self.downloaded_data = download_rgb_data(config=self.config, collection=self.collection, bbox=bbox, start_date=self.start_date, end_date=self.end_date)
-                print(self.downloaded_data)
-            case "NDVI":
-                self.downloaded_data = download_ndvi_data(config=self.config, collection=self.collection, bbox=bbox, start_date=self.start_date, end_date=self.end_date)
-                print(self.downloaded_data)
+        self.downloaded_data = download_data(config=self.config, bbox=bbox, start_date=self.start_date, end_date=self.end_date, options=self.download_option)
 
         self.show_status(text="!!!Data downloaded!!!")
+
 
 
     def confirmDate(self):

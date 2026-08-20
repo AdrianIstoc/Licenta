@@ -1,11 +1,31 @@
 from datetime import date
 from SentinelHub.sh_indices import calculate_ndvi
+from SentinelHub.sh_collections import get_sentinel2_l2a
 from sentinelhub import (
     SentinelHubRequest,
     MimeType,
     bbox_to_dimensions
 )
 import numpy as np
+
+PRODUCT = {
+    "RGB": {
+        "bands": ["B02", "B03", "B04"]
+    },
+    "NDVI": {
+        "bands": ["B04", "B08"],
+        "clm": True,
+        "scl": True,
+        "data_mask": True
+    },
+    "Vpr": {
+        "bands": [],
+        "scl": True,
+        "data_mask": True
+    }
+}
+
+
 
 def choose_resolution(bbox, resolution, max_pixels=2000):
     resolution = resolution
@@ -235,3 +255,78 @@ def download_rgb_data(config, collection, bbox, start_date, end_date):
             print(f"Failed for {period_start}: {e}")
 
     return {"option": "RGB", "results": results}
+
+def extract_requirements(options):
+    bands = set()
+    clm = False
+    scl = False
+    data_mask = False
+
+    for option, selected in options.items():
+        if not selected.get():
+            continue
+
+        product = PRODUCT.get(option)
+        if not product:
+            continue
+
+        bands.update(product.get("bands", []))
+
+        if product.get("clm", False):
+            clm = True
+
+        if product.get("scl", False):
+            scl = True
+
+        if product.get("data_mask", False):
+            data_mask = True
+
+    return {
+        "bands": sorted(bands),
+        "clm": clm,
+        "scl": scl,
+        "data_mask": data_mask
+    }
+
+def get_band_indices(bands, clm=False, scl=False, data_mask=False):
+    inputs = list(bands)
+
+    if clm:
+        inputs.append("CLM")
+    if scl:
+        inputs.append("SCL")
+    if data_mask:
+        inputs.append("dataMask")
+
+    return {name: i for i, name in enumerate(inputs)}
+
+def download_data(config, bbox, start_date, end_date, options):
+    results = []
+
+    collection = get_sentinel2_l2a(config=config)
+
+    periods = create_periods(start_date=start_date, end_date=end_date)
+
+    bands, clm, scl, data_mask = extract_requirements(options=options)
+
+    indices = get_band_indices(bands=bands, clm=clm, scl=scl, data_mask=data_mask)
+
+    for period_start, period_end in periods:
+        try:
+            image = download_bands(
+                config=config,
+                collection=collection,
+                bbox=bbox,
+                time_interval=(period_start, period_end),
+                bands=bands,
+                mosaicking_order="leastCC",
+                maxcc=0.2,
+                clm=clm,
+                scl=scl,
+                data_mask=data_mask,
+                sample_type="FLOAT32"
+            )
+
+
+        except Exception as e:
+            print(f"Failed for {period_start} - {period_end}: {e}")
