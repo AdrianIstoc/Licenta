@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkintermapview import TkinterMapView
 from tkcalendar import Calendar
-from SentinelHub.sh_analysis import VegetationAnalysis
 from sentinelhub import (
     BBox,
     CRS
@@ -10,9 +9,10 @@ from SentinelHub.sh_collections import get_sentinel2_l2a
 from SentinelHub.sh_download import (
     download_rgb_data,
     download_ndvi_data,
+    download_ndwi_data
 )
 from utils import graph_data, plot_image
-
+from SentinelHub.sh_prediction import prdct
 
 class Application(tk.Tk):
     def __init__(self, config):
@@ -50,10 +50,12 @@ class Application(tk.Tk):
         self.toolbar = tk.Frame(self, height=30, bd=2, relief="raised")
         self.toolbar.grid(row=0,column=0,columnspan=2,sticky="ew")
 
+
         self.map = TkinterMapView(self)
         self.map.grid(row=1,column=0,sticky="nsew")
         self.map.set_position(46.9973931, 26.8239746) #Romania-Pildesti
         self.map.set_zoom(14)
+
         
         self.side_menu = tk.Frame(self, width=250, bd=2, relief="raised")
         self.side_menu.grid(row=1, column=1, sticky="ns")
@@ -68,14 +70,14 @@ class Application(tk.Tk):
         self.download_button = tk.Button(self.toolbar, text="Download", command=self.download_selected_data)
         self.download_button.pack(side="left")
 
+        self.print_button = tk.Button(self.toolbar, text="Image", command=self.show_image)
+        self.print_button.pack(side="left")
+
         self.graph_button = tk.Button(self.toolbar, text="Graph", command=self.graph_data)
         self.graph_button.pack(side="left")
 
-        self.print_image = tk.Button(self.toolbar, text="Image", command=self.show_image)
-        self.print_image.pack(side="left")
-
-        self.analysis_button = tk.Button(self.toolbar, text="Analysis", command = self.print_analysis)
-        self.analysis_button.pack(side="left")
+        self.predict_button = tk.Button(self.toolbar, text="Prediction", command = self.prediction)
+        self.predict_button.pack(side="left")
 
 
         self.label_start = tk.Label(self.side_menu, text="Start date")
@@ -93,6 +95,7 @@ class Application(tk.Tk):
         self.confirm_date_button = tk.Button(self.side_menu, text="Confirm date", command=self.confirmDate)
         self.confirm_date_button.pack()
 
+
         self.option_label = tk.Label(self.side_menu, text="Download:")
         self.option_label.pack(pady=(20, 5))
 
@@ -101,6 +104,25 @@ class Application(tk.Tk):
 
         self.ndvi_radio = tk.Radiobutton(self.side_menu, text="NDVI", variable=self.download_option, value="NDVI")
         self.ndvi_radio.pack(anchor="w")
+
+        self.ndwi_radio = tk.Radiobutton(self.side_menu, text="NDWI", variable=self.download_option, value="NDWI")
+        self.ndwi_radio.pack(anchor="w")
+
+
+    def prediction(self):
+        if self.downloaded_data is None:
+            self.show_status(text="No data to predict!", duration=3000)
+            return
+        elif self.downloaded_data["option"]=="RGB":
+            self.show_status(text="Cannot predict RGB!", duration=3000)
+            return
+
+        predictions = prdct(results=self.downloaded_data["results"])
+
+        dates= [result["date"] for result in predictions]
+        indice= [result["value"] for result in predictions]
+
+        graph_data(dates=dates, indice=indice, indice_name=self.downloaded_data["option"])        
 
     def show_image(self):
         if self.downloaded_data is None:
@@ -118,10 +140,10 @@ class Application(tk.Tk):
             return
 
         dates = [result["date"] for result in self.downloaded_data["results"]]
-        ndvi = [result["mean_ndvi"] for result in self.downloaded_data["results"]]
-        percentage = [result["vegetation_percentage"] for result in self.downloaded_data["results"]]
-
-        graph_data(dates=dates, indice=ndvi, indice_name=self.downloaded_data["option"], percentage=percentage)
+        indice = [result["value"] for result in self.downloaded_data["results"]]
+        percentage = [result["percentage"] for result in self.downloaded_data["results"]]
+        
+        graph_data(dates=dates, indice=indice, indice_name=self.downloaded_data["option"], percentage=percentage)
 
     def download_selected_data(self):
         if self.download_option.get() == "None":
@@ -146,6 +168,9 @@ class Application(tk.Tk):
             case "NDVI":
                 self.downloaded_data = download_ndvi_data(config=self.config, collection=self.collection, bbox=bbox, start_date=self.start_date, end_date=self.end_date)
                 print(self.downloaded_data)
+            case "NDWI":
+                self.downloaded_data = download_ndwi_data(config=self.config, collection=self.collection, bbox=bbox, start_date=self.start_date, end_date=self.end_date)
+                print(self.downloaded_data)
 
         self.show_status(text="!!!Data downloaded!!!")
 
@@ -157,16 +182,6 @@ class Application(tk.Tk):
         print(self.end_date)
 
 
-        
-
-    def print_analysis(self):
-        bbox = BBox(bbox=[self.starting_point[1], self.starting_point[0], self.current_point[1], self.current_point[0]], crs=CRS.WGS84)
-
-        analysis = VegetationAnalysis(config=self.config, collection=self.collection, bbox=bbox, start_date=self.start_date, end_date=self.end_date)
-
-        analysis.run()
-        print(analysis.results)
-        analysis.graph_ndvi()
 
 
     def toggle_area_selection(self):
