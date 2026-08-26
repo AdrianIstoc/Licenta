@@ -12,7 +12,7 @@ from SentinelHub.sh_download import (
     download_ndwi_data
 )
 from utils import graph_data, plot_image
-from SentinelHub.sh_prediction import prdct
+from SentinelHub.sh_prediction import predict
 
 class Application(tk.Tk):
     def __init__(self, config):
@@ -21,7 +21,7 @@ class Application(tk.Tk):
         self.download_option = tk.StringVar(value="None")
         self.prediction_months=tk.IntVar(value=12)
 
-        self.title("Titlu obscur") #Rename window
+        self.title("Environmental Monitoring")
         self.geometry("1280x720")
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1)
@@ -71,8 +71,8 @@ class Application(tk.Tk):
         self.download_button = tk.Button(self.toolbar, text="Download", command=self.download_selected_data)
         self.download_button.pack(side="left")
 
-        self.print_button = tk.Button(self.toolbar, text="Image", command=self.show_image)
-        self.print_button.pack(side="left")
+        self.image_button = tk.Button(self.toolbar, text="Image", command=self.show_image)
+        self.image_button.pack(side="left")
 
         self.graph_button = tk.Button(self.toolbar, text="Graph", command=self.graph_data)
         self.graph_button.pack(side="left")
@@ -126,7 +126,7 @@ class Application(tk.Tk):
             return
 
 
-        predictions = prdct(results=self.downloaded_data["results"], n=self.prediction_months.get())
+        predictions = predict(results=self.downloaded_data["results"], n=self.prediction_months.get())
 
         dates= [result["date"] for result in predictions]
         indice= [result["value"] for result in predictions]
@@ -159,13 +159,13 @@ class Application(tk.Tk):
             self.show_status(text="No download option selected!", duration=3000)
             return
         elif self.starting_point is None:
-            self.show_status(text="No selected are!", duration=3000)
+            self.show_status(text="No area selected!", duration=3000)
             return
         elif self.start_date is None:
             self.show_status(text="No time window selected!", duration=3000)
             return
         elif self.start_date > self.end_date:
-            self.show_status(text="Starting date must be a date befor the end date!", duration=3000)
+            self.show_status(text="Starting date must be befor the end date!", duration=3000)
             return
         
         bbox = BBox(bbox=[self.starting_point[1], self.starting_point[0], self.current_point[1], self.current_point[0]], crs=CRS.WGS84)
@@ -173,13 +173,11 @@ class Application(tk.Tk):
         match self.download_option.get():
             case "RGB":
                 self.downloaded_data = download_rgb_data(config=self.config, collection=self.collection, bbox=bbox, start_date=self.start_date, end_date=self.end_date)
-                print(self.downloaded_data)
             case "NDVI":
                 self.downloaded_data = download_ndvi_data(config=self.config, collection=self.collection, bbox=bbox, start_date=self.start_date, end_date=self.end_date)
-                print(self.downloaded_data)
             case "NDWI":
                 self.downloaded_data = download_ndwi_data(config=self.config, collection=self.collection, bbox=bbox, start_date=self.start_date, end_date=self.end_date)
-                print(self.downloaded_data)
+
 
         self.show_status(text="!!!Data downloaded!!!")
 
@@ -187,8 +185,7 @@ class Application(tk.Tk):
     def confirmDate(self):
         self.start_date = self.calendar_start.selection_get()
         self.end_date = self.calendar_end.selection_get()
-        print(self.start_date)
-        print(self.end_date)
+        self.show_status(text="Date selected!", duration=3000)
 
 
 
@@ -199,7 +196,7 @@ class Application(tk.Tk):
         if self.selecting_area:
             self.select_button.config(text="Cancel", relief=tk.SUNKEN)
             self.enable_selection()
-            self.show_status("Selection mode: drag with the middle mouse button.", duration=3000)
+            self.show_status("Selection mode: drag with the right mouse button.", duration=3000)
         else:
             self.select_button.config(text="Select", relief=tk.RAISED)
             self.disable_selection()
@@ -252,8 +249,7 @@ class Application(tk.Tk):
 
         if self.starting_point is not None:
             self.show_status("Selection locked.", duration=3000)
-        print(self.starting_point)
-        print(self.current_point)
+        
 
     def show_status(self, text, duration=None):
         self.status_label.config(text=text)

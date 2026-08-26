@@ -1,13 +1,13 @@
 import math
 import pandas as pd
 import numpy as np
-from utils import backtest_model, evaluate_backtest_2, predict_persistence, predict_seasonal_naive
+# from utils import backtest_model, evaluate_backtest, predict_persistence, predict_seasonal_naive
 
 
 SIGMA = 5.0
 ALPHA = 0.1
 BETA = 4.5
-HORRIZON = 12
+# HORRIZON = 12
 
 
 
@@ -73,8 +73,6 @@ def get_month_history(df, month):
     return history
 
 
-
-def predict_month(df, target_month, sigma=2.0):
     weights = get_weights(target_month, sigma=sigma)
 
     weighted_sum=0.0
@@ -123,6 +121,7 @@ def get_month_differences(df, target_month):
 
     return pd.DataFrame(results)
 
+
 def predict_month_from_differences(df, target_month, sigma=2.0):
     differences = get_month_differences(df, target_month=target_month)
 
@@ -138,7 +137,6 @@ def predict_month_from_differences(df, target_month, sigma=2.0):
     )
 
     return weighted_difference
-
 
 def predict_next_months(df, n, sigma=2.0):
     df = df.copy()
@@ -239,117 +237,10 @@ def predict_next_months_improved(df, n, alpha=0.5, beta=2.0):
 
 
 
-def prdct(results, n):
+def predict(results, n):
     df = results_to_dataFrame(results=results)
     cc = complete_calendar(df)
     acf = add_calendar_features(cc)
-
-    # sigma_values=[0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
-    # sigma_results=[]
-
-    # for sigma in sigma_values:
-    #     results_sigma = backtest_model(acf, predict_next_months, horizon=HORRIZON, sigma=sigma)
-    #     metrics_sigma=evaluate_backtest_2(results_sigma)
-    #     print(
-    #         f"sigma={sigma}, "
-    #         f"rows={len(results_sigma)}, "
-    #         f"MAE={metrics_sigma['MAE']}, "
-    #         f"RMSE={metrics_sigma['RMSE']}"
-    #     )
-    #     sigma_results.append({
-    #         "sigma": sigma,
-    #         "MAE": metrics_sigma["MAE"],
-    #         "RMSE": metrics_sigma["RMSE"]
-    #     })
-
-    # print()
-    # print("sigma results:")
-    # print(sigma_results)
-
-    # if not sigma_results:
-    #     print("NU S-A PUTUT DETERMINA UN sigma!")
-    #     return None
-
-    # best_sigma_results = min(sigma_results,key=lambda x:x["MAE"])
-
-    # best_sigma = best_sigma_results["sigma"]
-
-    # print()
-    # print("Best sigma:")
-    # print(best_sigma)
-    # print("MAE:", best_sigma_results["MAE"])
-    # print("RMSE:", best_sigma_results["RMSE"])
-
-
-
-
-    # alpha_values=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-    # beta_values=[0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
-
-    # both_results=[]
-
-    # for alpha in alpha_values:
-    #     for beta in beta_values:
-    #         results_both = backtest_model(acf, predict_next_months_improved, horizon=HORRIZON, alpha=alpha, beta=beta)
-    #         metrics_both=evaluate_backtest_2(results_both)
-    #         print(
-    #             f"alpha={alpha}, "
-    #             f"beta={beta}, "
-    #             f"rows={len(results_both)}, "
-    #             f"MAE={metrics_both['MAE']}, "
-    #             f"RMSE={metrics_both['RMSE']}"
-    #         )
-    #         both_results.append({
-    #             "alpha": alpha,
-    #             "beta": beta,
-    #             "MAE": metrics_both["MAE"],
-    #             "RMSE": metrics_both["RMSE"]
-    #         })
-
-    # print()
-    # print("Both results:")
-    # print(both_results)
-
-    # if not both_results:
-    #     print("NU S-A PUTUT DETERMINA O COMBINATIE alpha/beta!")
-    #     return None
-
-    # best_both = min(both_results,key=lambda x:x["MAE"])
-
-    # best_alpha = best_both["alpha"]
-    # best_beta = best_both["beta"]
-
-    # print()
-    # print("Best combination:")
-    # print("Alpha:", best_alpha)
-    # print("Beta:", best_beta)
-    # print("MAE:", best_both["MAE"])
-    # print("RMSE:", best_both["RMSE"])
-
-
-    result_model = backtest_model(acf, predict_next_months, horizon=6, sigma=SIGMA)
-    metrics_model = evaluate_backtest_2(result_model)
-
-    result_persistance = backtest_model(acf, predict_persistence, horizon=6)
-    metrics_persistance = evaluate_backtest_2(result_persistance)
-
-    result_seasonal = backtest_model(acf, predict_seasonal_naive, horizon=6)
-    metrics_seasonal = evaluate_backtest_2(result_seasonal)
-
-    results_new_model = backtest_model(acf, predict_next_months_improved, horizon=6, alpha=ALPHA, beta=BETA)
-    metrics_new=evaluate_backtest_2(results_new_model)
-
-    print("Persistance:")
-    print(metrics_persistance)
-    print()
-    print("Seasonal naive:")
-    print(metrics_seasonal)
-    print()
-    print("Weighted model:")
-    print(metrics_model)
-    print()
-    print("New model:")
-    print(metrics_new)
 
     # return predict_next_months(df=acf, n=n, sigma=SIGMA)
     return predict_next_months_improved(df=acf, n=n, alpha=ALPHA, beta=BETA)

@@ -175,62 +175,6 @@ def graph_data(dates, indice, indice_name, percentage=None):
 
 
 
-
-def backtest(df, horizon=6, step=1, sigma=2.0):
-    df = df.sort_values("date").copy()
-
-    real_dates= df.loc[df["value"].notna(), "date"].sort_values().unique()
-
-    results=[]
-
-    for i in range(0, len(real_dates)-horizon, step):
-        cutoff_date = real_dates[i]
-        train_df = df[df["date"] <= cutoff_date].copy()
-
-        future_dates=real_dates[
-            (real_dates>cutoff_date)
-        ][:horizon]
-
-        if len(future_dates)<horizon:
-            break
-
-        predictions = predict_next_months(df=train_df, n=horizon, sigma=sigma)
-
-        prediction_df = pd.DataFrame(predictions)
-
-        actual_df = df[df["date"].isin(future_dates)][["date","value"]].copy()
-
-        merged = actual_df.merge(
-            prediction_df,
-            on="date",
-            suffixes=("_actual", "_predicted")
-        )
-
-        merged["error"] = (
-            merged["value_predicted"]
-            -merged["value_actual"]
-        )
-
-        merged["absolute_error"]=merged["error"].abs()
-
-        results.append(merged)
-
-    if not results:
-        return pd.DataFrame()
-
-    return pd.concat(results, ignore_index=True)
-
-def evaluate_backtest(results):
-    mae = results["absolute_error"].mean()
-
-    rmse= (results["error"]**2).mean()**0.5
-
-    return {
-        "MAE": mae,
-        "RMSE": rmse
-    }
-
-
 def predict_persistence(df, n):
     df= df.copy()
 
@@ -341,7 +285,7 @@ def backtest_model(df, predict_function, horizon=6, **kwargs):
 
     return pd.DataFrame(results)
 
-def evaluate_backtest_2(results):
+def evaluate_backtest(results):
     if results.empty:
         return{
             "MAE": None,
