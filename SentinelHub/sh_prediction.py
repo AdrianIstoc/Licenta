@@ -1,6 +1,15 @@
 import math
 import pandas as pd
 import numpy as np
+from utils import backtest_model, evaluate_backtest_2, predict_persistence, predict_seasonal_naive
+
+
+SIGMA = 5.0
+ALPHA = 0.1
+BETA = 4.5
+HORRIZON = 12
+
+
 
 def month_distance(m1, m2):
     diff = abs(m1-m2)
@@ -138,7 +147,6 @@ def predict_next_months(df, n, sigma=2.0):
 
     predictions=[]
 
-    current_value=df.loc[df["date"]==last_real_date, "value"].iloc[0]
     current_date = last_real_date
 
     for _ in range(n):
@@ -148,9 +156,10 @@ def predict_next_months(df, n, sigma=2.0):
         delta = predict_month_from_differences(df, target_month, sigma)
 
         if delta is None:
-            prediction = current_value
+            prediction = None
         else:
-            prediction = current_value+delta
+            last_real_value = df.loc[df["date"] == last_real_date, "value"].iloc[0]
+            prediction = last_real_value+delta
 
         predictions.append({
             "date": next_date,
@@ -158,47 +167,167 @@ def predict_next_months(df, n, sigma=2.0):
         })
 
         current_date = next_date
-        current_value = prediction
 
     return predictions
 
 
-def prdct(results):
+def predict_month_improved(df, target_date, alpha=0.5, beta=2.0):
+    df = df.copy()
+
+    target_month = target_date.month
+
+    valid = df[df["value"].notna()].copy()
+
+    if valid.empty:
+        return None
+
+    same_month = valid[valid["date"].dt.month == target_month].copy()
+
+    if same_month.empty:
+        return None
+    target_year = target_date.year
+
+    same_month["year_distance"]= (target_year-same_month["date"].dt.year)
+
+    same_month = same_month[same_month["year_distance"]>0]
+
+    if same_month.empty:
+        return None
+
+    same_month["year_weight"]=np.exp(-same_month["year_distance"]/beta)
+
+    if same_month.empty:
+        return None
+
+    seasonal_value=(same_month["value"]*same_month["year_weight"]).sum()/same_month["year_weight"].sum()
+
+    if len(same_month)>= 2:
+        same_month=same_month.sort_values("date")
+        differences=same_month["value"].diff().dropna()
+
+        trend = differences.mean()
+    else:
+        trend=0.0
+
+    prediction = seasonal_value + alpha*trend
+
+    return prediction
+
+def predict_next_months_improved(df, n, alpha=0.5, beta=2.0):
+    df = df.copy()
+    df = df.sort_values("date")
+
+    valid = df[df["value"].notna()]
+
+    if valid.empty:
+        return None
+
+    last_real_date=valid["date"].max()
+
+    predictions=[]
+
+    for i in range(1, n+1):
+        target_date=last_real_date+pd.DateOffset(months=i)
+        prediction=predict_month_improved(df=df, target_date=target_date, alpha=alpha, beta=beta)
+
+        predictions.append({
+            "date": target_date, #.strftime("%Y-%m-%d"),
+            "value": prediction
+        })
+
+    return predictions
+
+
+
+def prdct(results, n):
     df = results_to_dataFrame(results=results)
     cc = complete_calendar(df)
     acf = add_calendar_features(cc)
 
-    # sigmas=[
-    #     0.5,
-    #     1.0,
-    #     1.5,
-    #     2.0,
-    #     2.5,
-    #     3.0,
-    #     3.5,
-    #     4.0,
-    #     4.5,
-    #     5.0
-    # ]
-    # for sigma in sigmas:
-    #     bt = backtest(df=acf, horizon=6, sigma=sigma)
-    #     metrics=evaluate_backtest(bt)
+    # sigma_values=[0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
+    # sigma_results=[]
+
+    # for sigma in sigma_values:
+    #     results_sigma = backtest_model(acf, predict_next_months, horizon=HORRIZON, sigma=sigma)
+    #     metrics_sigma=evaluate_backtest_2(results_sigma)
     #     print(
-    #         f"sigma={sigma:.1f} "
-    #         f"MAE={metrics['MAE']:.5f} "
-    #         f"RMSE={metrics['RMSE']:.5f}"
+    #         f"sigma={sigma}, "
+    #         f"rows={len(results_sigma)}, "
+    #         f"MAE={metrics_sigma['MAE']}, "
+    #         f"RMSE={metrics_sigma['RMSE']}"
     #     )
+    #     sigma_results.append({
+    #         "sigma": sigma,
+    #         "MAE": metrics_sigma["MAE"],
+    #         "RMSE": metrics_sigma["RMSE"]
+    #     })
+
+    # print()
+    # print("sigma results:")
+    # print(sigma_results)
+
+    # if not sigma_results:
+    #     print("NU S-A PUTUT DETERMINA UN sigma!")
+    #     return None
+
+    # best_sigma_results = min(sigma_results,key=lambda x:x["MAE"])
+
+    # best_sigma = best_sigma_results["sigma"]
+
+    # print()
+    # print("Best sigma:")
+    # print(best_sigma)
+    # print("MAE:", best_sigma_results["MAE"])
+    # print("RMSE:", best_sigma_results["RMSE"])
 
 
-    # bt = backtest(df=acf, horizon=6, sigma=2.5)
-    # metrics=evaluate_backtest(bt)
-    # print(
-    #     f"MAE={metrics['MAE']:.5f} "
-    #     f"RMSE={metrics['RMSE']:.5f}"
-    # )
 
 
-    result_model = backtest_model(acf, predict_next_months, horizon=6, sigma=2.5)
+    # alpha_values=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    # beta_values=[0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
+
+    # both_results=[]
+
+    # for alpha in alpha_values:
+    #     for beta in beta_values:
+    #         results_both = backtest_model(acf, predict_next_months_improved, horizon=HORRIZON, alpha=alpha, beta=beta)
+    #         metrics_both=evaluate_backtest_2(results_both)
+    #         print(
+    #             f"alpha={alpha}, "
+    #             f"beta={beta}, "
+    #             f"rows={len(results_both)}, "
+    #             f"MAE={metrics_both['MAE']}, "
+    #             f"RMSE={metrics_both['RMSE']}"
+    #         )
+    #         both_results.append({
+    #             "alpha": alpha,
+    #             "beta": beta,
+    #             "MAE": metrics_both["MAE"],
+    #             "RMSE": metrics_both["RMSE"]
+    #         })
+
+    # print()
+    # print("Both results:")
+    # print(both_results)
+
+    # if not both_results:
+    #     print("NU S-A PUTUT DETERMINA O COMBINATIE alpha/beta!")
+    #     return None
+
+    # best_both = min(both_results,key=lambda x:x["MAE"])
+
+    # best_alpha = best_both["alpha"]
+    # best_beta = best_both["beta"]
+
+    # print()
+    # print("Best combination:")
+    # print("Alpha:", best_alpha)
+    # print("Beta:", best_beta)
+    # print("MAE:", best_both["MAE"])
+    # print("RMSE:", best_both["RMSE"])
+
+
+    result_model = backtest_model(acf, predict_next_months, horizon=6, sigma=SIGMA)
     metrics_model = evaluate_backtest_2(result_model)
 
     result_persistance = backtest_model(acf, predict_persistence, horizon=6)
@@ -206,6 +335,9 @@ def prdct(results):
 
     result_seasonal = backtest_model(acf, predict_seasonal_naive, horizon=6)
     metrics_seasonal = evaluate_backtest_2(result_seasonal)
+
+    results_new_model = backtest_model(acf, predict_next_months_improved, horizon=6, alpha=ALPHA, beta=BETA)
+    metrics_new=evaluate_backtest_2(results_new_model)
 
     print("Persistance:")
     print(metrics_persistance)
@@ -215,191 +347,9 @@ def prdct(results):
     print()
     print("Weighted model:")
     print(metrics_model)
-
-
-    return predict_next_months(df=acf, n=24, sigma=2.5)
-
-
-
-
-
-
-
-
-
-
-
-
-def backtest(df, horizon=6, step=1, sigma=2.0):
-    df = df.sort_values("date").copy()
-
-    real_dates= df.loc[df["value"].notna(), "date"].sort_values().unique()
-
-    results=[]
-
-    for i in range(0, len(real_dates)-horizon, step):
-        cutoff_date = real_dates[i]
-        train_df = df[df["date"] <= cutoff_date].copy()
-
-        future_dates=real_dates[
-            (real_dates>cutoff_date)
-        ][:horizon]
-
-        if len(future_dates)<horizon:
-            break
-
-        predictions = predict_next_months(df=train_df, n=horizon, sigma=sigma)
-
-        prediction_df = pd.DataFrame(predictions)
-
-        actual_df = df[df["date"].isin(future_dates)][["date","value"]].copy()
-
-        merged = actual_df.merge(
-            prediction_df,
-            on="date",
-            suffixes=("_actual", "_predicted")
-        )
-
-        merged["error"] = (
-            merged["value_predicted"]
-            -merged["value_actual"]
-        )
-
-        merged["absolute_error"]=merged["error"].abs()
-
-        results.append(merged)
-
-    if not results:
-        return pd.DataFrame()
-
-    return pd.concat(results, ignore_index=True)
-
-def evaluate_backtest(results):
-    mae = results["absolute_error"].mean()
-
-    rmse= (results["error"]**2).mean()**0.5
-
-    return {
-        "MAE": mae,
-        "RMSE": rmse
-    }
-
-
-def predict_persistence(df, n):
-    df= df.copy()
-
-    valid = df[df["value"].notna()]
-
-    if valid.empty:
-        return None
-
-    last_real_date = valid["date"].max()
-    current_value=valid.loc[valid["date"]==last_real_date, "value"].iloc[0]
-
-    predictions=[]
-    current_date=last_real_date
-
-    for _ in range(n):
-        next_date = current_date+pd.DateOffset(months=1)
-
-        predictions.append({
-            "date": next_date,
-            "value": current_value
-        })
-
-        current_date=next_date
-
-    return predictions
-
-def predict_seasonal_naive(df, n):
-    df = df.copy()
-
-    valid = df[df["value"].notna()].copy()
-
-    if valid.empty:
-        return None
-    last_real_date = valid["date"].max()
-
-    predictions=[]
-
-    current_date=last_real_date
-
-    for _ in range(n):
-        next_date = current_date+pd.DateOffset(months=1)
-        target_month = next_date.month
-
-        history = valid[valid["date"].dt.month == target_month]
-
-        if history.empty:
-            prediction = None
-        else:
-            prediction = history.sort_values("date")["value"].iloc[-1]
-
-        predictions.append({
-            "date": next_date,
-            "value": prediction
-        })
-
-        current_date=next_date
-
-    return predictions
-
-
-def backtest_model(df, predict_function, horizon=6, **kwargs):
-    df = df.copy()
-    df = df.sort_values("date").reset_index(drop=True)
-
-    valid_indices=df.index[df["value"].notna()].tolist()
-
-    results = []
-
-    for end_idx in valid_indices:
-        train = df.iloc[:end_idx+1].copy()
-
-        if len(train) < 6:
-            continue
-        predictions=predict_function(train, n=horizon, **kwargs)
-
-        if predictions is None:
-            continue
-
-        for prediction in predictions:
-            prediction_date = prediction["date"]
-
-            actual = df.loc[df["date"]==prediction_date, "value"]
-
-            if actual.empty:
-                continue
-
-            actual_value = actual.iloc[0]
-
-            if pd.isna(actual_value):
-                continue
-
-            if prediction["value"] is None:
-                continue
-
-            results.append({
-                "date": prediction_date,
-                "predicted": prediction["value"],
-                "actual": actual_value
-            })
-
-    return pd.DataFrame(results)
-
-def evaluate_backtest_2(results):
-    if results.empty:
-        return{
-            "MAE": None,
-            "RMSE": None
-        }
-
-    errors = (results["predicted"] - results["actual"])
-
-    mae = np.abs(errors).mean()
-    rmse = np.sqrt((errors**2).mean())
-
-    return {
-        "MAE": mae,
-        "RMSE": rmse
-    }
+    print()
+    print("New model:")
+    print(metrics_new)
+
+    # return predict_next_months(df=acf, n=n, sigma=SIGMA)
+    return predict_next_months_improved(df=acf, n=n, alpha=ALPHA, beta=BETA)

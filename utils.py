@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 
 def plot_rgb(image, ax):
@@ -139,7 +140,7 @@ def graph_data(dates, indice, indice_name, percentage=None):
     ax1.set_ylim(-1,1)
     ax1.grid(True)
     ax1.set_xticks(dates)
-    ax1.set_xticklabels(dates, rotation=45)
+    ax1.set_xticklabels(dates, rotation=90)
 
     lines = [line1]
 
@@ -164,3 +165,195 @@ def graph_data(dates, indice, indice_name, percentage=None):
     plt.title(indice_name)
     fig.tight_layout()
     plt.show()
+
+
+
+
+
+
+
+
+
+
+
+def backtest(df, horizon=6, step=1, sigma=2.0):
+    df = df.sort_values("date").copy()
+
+    real_dates= df.loc[df["value"].notna(), "date"].sort_values().unique()
+
+    results=[]
+
+    for i in range(0, len(real_dates)-horizon, step):
+        cutoff_date = real_dates[i]
+        train_df = df[df["date"] <= cutoff_date].copy()
+
+        future_dates=real_dates[
+            (real_dates>cutoff_date)
+        ][:horizon]
+
+        if len(future_dates)<horizon:
+            break
+
+        predictions = predict_next_months(df=train_df, n=horizon, sigma=sigma)
+
+        prediction_df = pd.DataFrame(predictions)
+
+        actual_df = df[df["date"].isin(future_dates)][["date","value"]].copy()
+
+        merged = actual_df.merge(
+            prediction_df,
+            on="date",
+            suffixes=("_actual", "_predicted")
+        )
+
+        merged["error"] = (
+            merged["value_predicted"]
+            -merged["value_actual"]
+        )
+
+        merged["absolute_error"]=merged["error"].abs()
+
+        results.append(merged)
+
+    if not results:
+        return pd.DataFrame()
+
+    return pd.concat(results, ignore_index=True)
+
+def evaluate_backtest(results):
+    mae = results["absolute_error"].mean()
+
+    rmse= (results["error"]**2).mean()**0.5
+
+    return {
+        "MAE": mae,
+        "RMSE": rmse
+    }
+
+
+def predict_persistence(df, n):
+    df= df.copy()
+
+    valid = df[df["value"].notna()]
+
+    if valid.empty:
+        return None
+
+    last_real_date = valid["date"].max()
+    current_value=valid.loc[valid["date"]==last_real_date, "value"].iloc[0]
+
+    predictions=[]
+    current_date=last_real_date
+
+    for _ in range(n):
+        next_date = current_date+pd.DateOffset(months=1)
+
+        predictions.append({
+            "date": next_date,
+            "value": current_value
+        })
+
+        current_date=next_date
+
+    return predictions
+
+def predict_seasonal_naive(df, n):
+    df = df.copy()
+
+    valid = df[df["value"].notna()].copy()
+
+    if valid.empty:
+        return None
+    last_real_date = valid["date"].max()
+
+    predictions=[]
+
+    current_date=last_real_date
+
+    for _ in range(n):
+        next_date = current_date+pd.DateOffset(months=1)
+        target_month = next_date.month
+
+        history = valid[valid["date"].dt.month == target_month]
+
+        if history.empty:
+            prediction = None
+        else:
+            prediction = history.sort_values("date")["value"].iloc[-1]
+
+        predictions.append({
+            "date": next_date,
+            "value": prediction
+        })
+
+        current_date=next_date
+
+    return predictions
+
+
+def backtest_model(df, predict_function, horizon=6, **kwargs):
+    df = df.copy()
+    df = df.sort_values("date").reset_index(drop=True)
+
+    valid_indices=df.index[df["value"].notna()].tolist()
+
+    results = []
+
+    for end_idx in valid_indices:
+        train = df.iloc[:end_idx+1].copy()
+
+        if len(train) < 6:
+            continue
+
+        last_train_date = train["date"].max()
+
+
+        predictions=predict_function(train, n=horizon, **kwargs)
+
+        if predictions is None:
+            continue
+
+
+        for prediction in predictions:
+            prediction_date = prediction["date"]
+            prediction_value = prediction["value"]
+
+
+            actual = df.loc[df["date"]==prediction_date, "value"]
+
+            if actual.empty:
+                continue
+
+            actual_value = actual.iloc[0]
+
+            if pd.isna(actual_value):
+                continue
+
+            if prediction["value"] is None:
+                continue
+
+            results.append({
+                "date": prediction_date,
+                "predicted": prediction["value"],
+                "actual": actual_value
+            })
+
+
+    return pd.DataFrame(results)
+
+def evaluate_backtest_2(results):
+    if results.empty:
+        return{
+            "MAE": None,
+            "RMSE": None
+        }
+
+    errors = (results["predicted"] - results["actual"])
+
+    mae = np.abs(errors).mean()
+    rmse = np.sqrt((errors**2).mean())
+
+    return {
+        "MAE": mae,
+        "RMSE": rmse
+    }

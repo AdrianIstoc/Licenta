@@ -19,6 +19,7 @@ class Application(tk.Tk):
         super().__init__()
 
         self.download_option = tk.StringVar(value="None")
+        self.prediction_months=tk.IntVar(value=12)
 
         self.title("Titlu obscur") #Rename window
         self.geometry("1280x720")
@@ -109,6 +110,13 @@ class Application(tk.Tk):
         self.ndwi_radio.pack(anchor="w")
 
 
+        self.prediction_label=tk.Label(self.side_menu, text="Prediction months:")
+        self.prediction_label.pack(pady=(20, 5))
+
+        self.prediction_spinbox=tk.Spinbox(self.side_menu, from_=1, to=60, textvariable=self.prediction_months, width=10)
+        self.prediction_spinbox.pack()
+
+
     def prediction(self):
         if self.downloaded_data is None:
             self.show_status(text="No data to predict!", duration=3000)
@@ -117,7 +125,8 @@ class Application(tk.Tk):
             self.show_status(text="Cannot predict RGB!", duration=3000)
             return
 
-        predictions = prdct(results=self.downloaded_data["results"])
+
+        predictions = prdct(results=self.downloaded_data["results"], n=self.prediction_months.get())
 
         dates= [result["date"] for result in predictions]
         indice= [result["value"] for result in predictions]
