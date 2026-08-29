@@ -32,6 +32,7 @@ class Application(tk.Tk):
 
         self.config = config
         self.collection = get_sentinel2_l2a(config)
+        self.disable_selection()
 
         self.dragging_mouse = False
         self.selecting_area = False
@@ -54,8 +55,8 @@ class Application(tk.Tk):
 
         self.map = TkinterMapView(self)
         self.map.grid(row=1,column=0,sticky="nsew")
-        self.map.set_position(46.9973931, 26.8239746) #Romania-Pildesti
-        self.map.set_zoom(14)
+        self.map.set_position(44.9913976, 29.0827044) #Romania-Rezervatia Biosferei Delta Dunarii
+        self.map.set_zoom(12)
 
         
         self.side_menu = tk.Frame(self, width=250, bd=2, relief="raised")
@@ -127,10 +128,15 @@ class Application(tk.Tk):
     
         predictions = predict(results=self.downloaded_data["results"], n=self.prediction_months.get())
 
+        if predictions is None:
+            self.show_status(text="Nu exista predicție!")
+            return
+
         dates= [result["date"] for result in predictions]
         indice= [result["value"] for result in predictions]
+        percentage= [result["percentage"] for result in predictions]
 
-        graph_data(dates=dates, indice=indice, indice_name=self.downloaded_data["option"])        
+        graph_data(dates=dates, indice=indice, indice_name=self.downloaded_data["option"], percentage=percentage)        
 
     def show_image(self):
         if self.downloaded_data is None or self.downloaded_data["results"]==[]:
@@ -177,8 +183,10 @@ class Application(tk.Tk):
             case "NDWI":
                 self.downloaded_data = download_ndwi_data(config=self.config, collection=self.collection, bbox=bbox, start_date=self.start_date, end_date=self.end_date)
 
-        print(self.downloaded_data)
-        self.show_status(text="!!!Date descărcate!!!")
+        if self.downloaded_data is None or self.downloaded_data["results"] == []:
+            self.show_status(text="!!!Descărcare eșuată! Încearcă o perioadă te timp mai largă")
+        else:
+            self.show_status(text="!!!Date descărcate!!!")
 
 
     def confirmDate(self):

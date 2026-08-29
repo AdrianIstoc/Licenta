@@ -1,13 +1,13 @@
 import math
 import pandas as pd
 import numpy as np
-# from utils import backtest_model, evaluate_backtest, predict_persistence, predict_seasonal_naive
+from utils import backtest_model, evaluate_backtest, predict_persistence, predict_seasonal_naive
 
 
-SIGMA = 5.0
-ALPHA = 0.1
-BETA = 4.5
-# HORRIZON = 12
+SIGMA = 10.0
+ALPHA = 0.05
+BETA = 10.0
+HORRIZON = 12
 
 
 
@@ -35,7 +35,8 @@ def results_to_dataFrame(results):
     df = pd.DataFrame([
         {
             "date": item["date"],
-            "value": item["value"]
+            "value": item["value"],
+            "percentage": item.get("percentage")
         }
         for item in results
     ])
@@ -73,31 +74,11 @@ def get_month_history(df, month):
     return history
 
 
-    weights = get_weights(target_month, sigma=sigma)
-
-    weighted_sum=0.0
-    weight_sum=0.0
-
-    for month, weight in weights.items():
-        history = get_month_history(df, month=month)
-        if history.empty:
-            continue
-
-        value_mean = history["value"].mean()
-
-        weighted_sum += value_mean*weight
-        weight_sum +=weight
-
-    if weight_sum==0:
-        return None
-
-    return weighted_sum/weight_sum
-
-def get_month_differences(df, target_month):
+def get_month_differences(df, target_month, value_column="value"):
     results = []
 
     for year, year_df in df.groupby("year"):
-        target = year_df.loc[year_df["month"]==target_month, "value"]
+        target = year_df.loc[year_df["month"]==target_month, value_column]
 
         if target.empty or pd.isna(target.iloc[0]):
             continue
@@ -105,7 +86,8 @@ def get_month_differences(df, target_month):
         target_value = target.iloc[0]
 
         for _, row in year_df.iterrows():
-            if pd.isna(row["value"]):
+            value = row[value_column]
+            if pd.isna(value):
                 continue
             if row["month"]==target_month:
                 continue
@@ -114,16 +96,16 @@ def get_month_differences(df, target_month):
                 "year": year,
                 "month": int(row["month"]),
                 "target_value": target_value,
-                "other_value": row["value"],
-                "difference": target_value-row["value"],
+                "other_value": value,
+                "difference": target_value-value,
                 "distance": month_distance(m1=target_month, m2=int(row["month"]))
             })
 
     return pd.DataFrame(results)
 
 
-def predict_month_from_differences(df, target_month, sigma=2.0):
-    differences = get_month_differences(df, target_month=target_month)
+def predict_month_from_differences(df, target_month, value_column="value", sigma=2.0):
+    differences = get_month_differences(df, target_month=target_month, value_column=value_column)
 
     if differences.empty:
         return None
@@ -151,17 +133,31 @@ def predict_next_months(df, n, sigma=2.0):
         next_date = current_date+pd.DateOffset(months=1)
         target_month = next_date.month
 
-        delta = predict_month_from_differences(df, target_month, sigma)
+        delta = predict_month_from_differences(df=df, target_month=target_month, value_column="value", sigma=sigma)
 
         if delta is None:
-            prediction = None
+            value_prediction = None
         else:
             last_real_value = df.loc[df["date"] == last_real_date, "value"].iloc[0]
-            prediction = last_real_value+delta
+            value_prediction = last_real_value+delta
+
+        percentage_prediction = None
+
+        if ("percentage" in df.columns and df["percentage"].notna().any()):
+            percentage_delta=predict_month_from_differences(df=df, target_month=target_month, value_column="percentage", sigma=sigma)
+
+            if percentage_delta is not None:
+                last_real_percentage = df.loc[df["date"]==last_real_date, "percentage"].iloc[0]
+
+                if pd.notna(last_real_percentage):
+                    percentage_prediction = (last_real_percentage +percentage_delta)
+
+                    percentage_prediction = np.clip(percentage_prediction, 0, 100)
 
         predictions.append({
             "date": next_date,
-            "value": prediction
+            "value": value_prediction,
+            "percentage": percentage_prediction
         })
 
         current_date = next_date
@@ -169,12 +165,12 @@ def predict_next_months(df, n, sigma=2.0):
     return predictions
 
 
-def predict_month_improved(df, target_date, alpha=0.5, beta=2.0):
+def predict_month_improved(df, target_date, value_column="value", alpha=0.5, beta=2.0):
     df = df.copy()
 
     target_month = target_date.month
 
-    valid = df[df["value"].notna()].copy()
+    valid = df[df[value_column].notna()].copy()
 
     if valid.empty:
         return None
@@ -197,11 +193,11 @@ def predict_month_improved(df, target_date, alpha=0.5, beta=2.0):
     if same_month.empty:
         return None
 
-    seasonal_value=(same_month["value"]*same_month["year_weight"]).sum()/same_month["year_weight"].sum()
+    seasonal_value=(same_month[value_column]*same_month["year_weight"]).sum()/same_month["year_weight"].sum()
 
     if len(same_month)>= 2:
         same_month=same_month.sort_values("date")
-        differences=same_month["value"].diff().dropna()
+        differences=same_month[value_column].diff().dropna()
 
         trend = differences.mean()
     else:
@@ -226,11 +222,16 @@ def predict_next_months_improved(df, n, alpha=0.5, beta=2.0):
 
     for i in range(1, n+1):
         target_date=last_real_date+pd.DateOffset(months=i)
-        prediction=predict_month_improved(df=df, target_date=target_date, alpha=alpha, beta=beta)
+        value_prediction=predict_month_improved(df=df, target_date=target_date, value_column="value", alpha=alpha, beta=beta)
+        percentage_prediction=predict_month_improved(df=df, target_date=target_date, value_column="percentage", alpha=alpha, beta=beta)
+
+        if percentage_prediction is not None:
+            percentage_prediction = np.clip(percentage_prediction, 0, 100)
 
         predictions.append({
-            "date": target_date, #.strftime("%Y-%m-%d"),
-            "value": prediction
+            "date": target_date.strftime("%Y-%m-%d"),
+            "value": value_prediction,
+            "percentage": percentage_prediction
         })
 
     return predictions
@@ -242,5 +243,94 @@ def predict(results, n):
     cc = complete_calendar(df)
     acf = add_calendar_features(cc)
 
-    # return predict_next_months(df=acf, n=n, sigma=SIGMA)
+    # find_best_prediction_model(df=acf, horizon=HORRIZON)
+
     return predict_next_months_improved(df=acf, n=n, alpha=ALPHA, beta=BETA)
+
+
+
+
+
+
+def find_best_sigma(df, sigmas, horizon=6):
+    best_sigma=None
+    best_metrics=None
+    best_score=float("inf")
+
+    for sigma in sigmas:
+        backtest = backtest_model(df=df, predict_function=predict_next_months, horizon=horizon, sigma=sigma)
+        metrics = evaluate_backtest(backtest)
+        score=metrics["score"]
+
+        if score is None:
+            continue
+
+        print(f"sigma={sigma} "
+              f"score={score}")
+
+        if score<best_score:
+            best_score=score
+            best_sigma=sigma
+            best_metrics=metrics
+
+    return {
+        "sigma": best_sigma,
+        "metrics": best_metrics
+        }
+
+def find_best_alpha_beta(df, alphas, betas, horizon=6):
+    best_alpha=None
+    best_beta=None
+    best_metrics=None
+    best_score=float("inf")
+
+    for alpha in alphas:
+        for beta in betas:
+            backtest = backtest_model(df=df, predict_function=predict_next_months_improved, horizon=horizon, alpha=alpha, beta=beta)
+            metrics=evaluate_backtest(backtest)
+            score=metrics["score"]
+
+            if score is None:
+                continue
+
+            print(f"alpha={alpha} "
+                  f"beta={beta} "
+                  f"score={score}")
+
+            if score < best_score:
+                best_score=score
+                best_alpha=alpha
+                best_beta=beta
+                best_metrics=metrics
+
+    return {
+        "alpha": best_alpha,
+        "beta": best_beta,
+        "metrics": best_metrics
+    }
+
+def find_best_prediction_model(df, horizon=6):
+    sigmas=[0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0,5.5,6.0,6.5,7.0,7.5,8.0,8.5,9.0,9.5,10.0, 12.0, 15.0, 20.0]
+    alphas=[0.05, 0.1, 0.15, 0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0]
+    betas=[0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0,5.5,6.0,6.5,7.0,7.5,8.0,8.5,9.0,9.5,10.0,12.0,15.0,20.0]
+
+    result_persistence =backtest_model(df=df, predict_function=predict_persistence, horizon=horizon)
+    metrics_persistence = evaluate_backtest(results=result_persistence)
+
+    result_seasonal = backtest_model(df=df, predict_function=predict_seasonal_naive, horizon=horizon)
+    metrics_seasonal=evaluate_backtest(results=result_seasonal)
+
+    best_weighted=find_best_sigma(df=df, sigmas=sigmas, horizon=horizon)
+
+    best_improved=find_best_alpha_beta(df=df, alphas=alphas, betas=betas, horizon=horizon)
+
+    models= {
+        "Persistence": metrics_persistence,
+        "Seasonal Naive": metrics_seasonal,
+        "Weighted": best_weighted["metrics"],
+        "Improved": best_improved["metrics"]
+    }
+
+    for name, metrics in models.items():
+        print(f"{name}: "
+              f"score={metrics['score']}")

@@ -126,7 +126,7 @@ def download_bands(
         sample_type=sample_type
     )
     resolution = choose_resolution(bbox=bbox, resolution=resolution)
-    # print (evalscript)
+    
     return download(
         config=config,
         collection=collection,

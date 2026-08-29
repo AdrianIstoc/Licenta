@@ -16,20 +16,7 @@ def plot_rgb(image, ax):
             rgb[:,:,channel]=0
 
 
-    rgb = np.clip(rgb, 0, 1) #image * 3.5, 0, 1)
-
-    for channel, name in enumerate(["r", "g", "b"]):
-        values = image[:,:,channel]
-
-        print(
-            name,
-            "min =", np.nanmin(values),
-            "p2 =", np.nanpercentile(values, 2),
-            "p98 =", np.nanpercentile(values, 98),
-            "max = ", np.nanmax(values),
-            "NaN =", np.isnan(values).sum()
-        )
-
+    rgb = np.clip(rgb, 0, 1)
     ax.imshow(rgb)
     ax.set_title("RGB")
     ax.axis("off")
@@ -186,6 +173,13 @@ def predict_persistence(df, n):
     last_real_date = valid["date"].max()
     current_value=valid.loc[valid["date"]==last_real_date, "value"].iloc[0]
 
+    current_percentage = None
+    if "percentage" in df.columns:
+        percentage=df.loc[df["date"] == last_real_date, "percentage"]
+
+        if not percentage.empty and pd.notna(percentage.iloc[0]):
+            current_percentage = percentage.iloc[0]
+
     predictions=[]
     current_date=last_real_date
 
@@ -194,7 +188,8 @@ def predict_persistence(df, n):
 
         predictions.append({
             "date": next_date,
-            "value": current_value
+            "value": current_value,
+            "percentage": current_percentage
         })
 
         current_date=next_date
@@ -218,16 +213,26 @@ def predict_seasonal_naive(df, n):
         next_date = current_date+pd.DateOffset(months=1)
         target_month = next_date.month
 
-        history = valid[valid["date"].dt.month == target_month]
+        history_value = valid[valid["date"].dt.month == target_month]
 
-        if history.empty:
-            prediction = None
+        if history_value.empty:
+            value_prediction = None
         else:
-            prediction = history.sort_values("date")["value"].iloc[-1]
+            value_prediction = history_value.sort_values("date")["value"].iloc[-1]
+
+        percentage_prediction = None
+
+        if "percentage" in df.columns:
+            history_percentage = df[(df["date"].dt.month == target_month) & (df["percentage"].notna())]
+
+            if not history_percentage.empty:
+                percentage_prediction=(history_percentage.sort_values("date")["percentage"].iloc[-1])
+        
 
         predictions.append({
             "date": next_date,
-            "value": prediction
+            "value": value_prediction,
+            "percentage": percentage_prediction
         })
 
         current_date=next_date
@@ -249,9 +254,6 @@ def backtest_model(df, predict_function, horizon=6, **kwargs):
         if len(train) < 6:
             continue
 
-        last_train_date = train["date"].max()
-
-
         predictions=predict_function(train, n=horizon, **kwargs)
 
         if predictions is None:
@@ -260,26 +262,32 @@ def backtest_model(df, predict_function, horizon=6, **kwargs):
 
         for prediction in predictions:
             prediction_date = prediction["date"]
-            prediction_value = prediction["value"]
-
-
-            actual = df.loc[df["date"]==prediction_date, "value"]
+            actual = df.loc[df["date"]==prediction_date]
 
             if actual.empty:
                 continue
 
-            actual_value = actual.iloc[0]
+            actual = actual.iloc[0]
 
-            if pd.isna(actual_value):
+            predicted_value=prediction.get("value")
+            actual_value = actual["value"]
+
+            predicted_percentage = prediction.get("percentage")
+            if "percentage" in df.columns:
+                actual_percentage=actual["percentage"]
+            else:
+                actual_percentage =None
+
+            if predicted_value is None and predicted_percentage is None:
                 continue
 
-            if prediction["value"] is None:
-                continue
 
             results.append({
                 "date": prediction_date,
-                "predicted": prediction["value"],
-                "actual": actual_value
+                "predicted": predicted_value,
+                "actual": actual_value,
+                "predicted_percentage": predicted_percentage,
+                "actual_percentage": actual_percentage
             })
 
 
@@ -288,16 +296,67 @@ def backtest_model(df, predict_function, horizon=6, **kwargs):
 def evaluate_backtest(results):
     if results.empty:
         return{
-            "MAE": None,
-            "RMSE": None
+            "value": {
+                "MAE": None,
+                "RMSE": None
+            },
+            "percentage": {
+                "MAE": None,
+                "RMSE": None
+            },
+            "score": None
         }
 
-    errors = (results["predicted"] - results["actual"])
+    value_data=results[
+        results["predicted"].notna() &
+        results["actual"].notna()
+    ]
 
-    mae = np.abs(errors).mean()
-    rmse = np.sqrt((errors**2).mean())
+    if value_data.empty:
+        value_mae=None
+        value_rmse=None
+    else:
+        value_errors=(value_data["predicted"]-value_data["actual"])
+        value_mae=np.abs(value_errors).mean()
+        value_rmse=np.sqrt((value_errors**2).mean())
+
+    percentage_data=results[
+        results["predicted_percentage"].notna() &
+        results["actual_percentage"].notna()
+    ]
+
+    if percentage_data.empty:
+        percentage_mae=None
+        percentage_rmse=None
+    else:
+        percentage_errors =(percentage_data["predicted_percentage"] - percentage_data["actual_percentage"])
+        percentage_mae=np.abs(percentage_errors).mean()
+        percentage_rmse=np.sqrt((percentage_errors**2).mean())
+
+    scores=[]
+
+    if value_mae is not None:
+        normalized_value_mae=value_mae/2.0
+        scores.append(normalized_value_mae)
+
+    if percentage_mae is not None:
+        normalized_percentage_mae=percentage_mae/100.0
+        scores.append(normalized_percentage_mae)
+
+    if scores:
+        score = np.mean(scores)
+    else:
+        score=None
 
     return {
-        "MAE": mae,
-        "RMSE": rmse
+        "value": {
+            "MAE": value_mae,
+            "RMSE": value_rmse
+        },
+        "percentage": {
+            "MAE": percentage_mae,
+            "RMSE": percentage_rmse
+        },
+        "score": score
     }
+
