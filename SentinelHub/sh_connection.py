@@ -1,4 +1,4 @@
-from sentinelhub import SHConfig, SentinelHubCatalog
+from sentinelhub import SHConfig
 from dotenv import load_dotenv
 import os
 
@@ -29,28 +29,4 @@ class SentinelHubConnection:
     def get_config(self):
 
         return self.config
-        
-
-    def get_catalog(self):
-        
-        return SentinelHubCatalog(config=self.config)
-    
-
-    def test_connection(self):
-
-        try:
-
-            catalog = self.get_catalog()
-
-            collections = catalog.get_collections()
-
-            print(f"Found {len(collections)} collections.")
-
-            return True
-        
-        except Exception as e:
-
-            print(e)
-
-            return False
-        
+     

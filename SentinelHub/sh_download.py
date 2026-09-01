@@ -8,7 +8,9 @@ from sentinelhub import (
     MimeType,
     bbox_to_dimensions
 )
+from SentinelHub.sh_collections import COLLECTIONS
 import numpy as np
+
 
 def choose_resolution(bbox, resolution, max_pixels=2000):
     resolution = resolution
@@ -206,6 +208,8 @@ def download_ndvi_data(config, collection, bbox, start_date, end_date):
                 "value": mean_ndvi,
                 "percentage": vegetation_percentage
             })
+            
+            print(f"Downloaded vegetation for {period_start}")
         except Exception as e:
             print(f"Faild for {period_start}: {e}")
 
@@ -257,6 +261,8 @@ def download_ndwi_data(config, collection, bbox, start_date, end_date):
                 "value": mean_ndwi,
                 "percentage": water_percentage
             })
+            
+            print(f"Downloaded water for {period_start}")
 
 
         except Exception as e:
@@ -287,7 +293,26 @@ def download_rgb_data(config, collection, bbox, start_date, end_date):
                 "image": image,
                 "date": period_start
             })
+            print(f"Downloaded image for {period_start}")
         except Exception as e:
             print(f"Failed for {period_start}: {e}")
 
     return {"option": "RGB", "results": results}
+
+
+DOWNLOAD_OPTIONS={
+    "RGB": download_rgb_data,
+    "NDVI": download_ndvi_data,
+    "NDWI": download_ndwi_data,
+}
+
+def download_data(config, bbox, start_date, end_date, option):
+    function = DOWNLOAD_OPTIONS.get(option)
+    if function is None:
+        print(f"Unkown download option {option}")
+        return 
+
+    collection_function = COLLECTIONS.get(option)
+    collection = collection_function(config=config)
+    
+    return function(config=config, collection=collection, bbox=bbox, start_date=start_date, end_date=end_date)

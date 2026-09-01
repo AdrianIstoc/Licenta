@@ -1,11 +1,11 @@
-from App.application import Application
+from MainWindow.main_window import MainWindow
 from SentinelHub.sh_connection import SentinelHubConnection
 
 def main():
     connection = SentinelHubConnection()
     config = connection.get_config()
 
-    app = Application(config=config)
+    app = MainWindow(config=config)
     app.mainloop()
 
 if __name__ == "__main__":
