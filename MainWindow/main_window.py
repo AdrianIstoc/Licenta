@@ -10,7 +10,6 @@ from SentinelHub.sh_visualiztion import graph_data, plot_image
 from SentinelHub.sh_prediction import predict
 
 
-
 class MainWindow(tk.Tk):
     def __init__(self, config):
         super().__init__()
@@ -131,6 +130,9 @@ class MainWindow(tk.Tk):
         self.predict_imp_radio = tk.Radiobutton(self.side_menu, text="Modelul îmbunătățit", variable=self.prediction_option, value="IMP")
         self.predict_imp_radio.pack(anchor="w")
 
+        self.predict_patch_radio = tk.Radiobutton(self.side_menu, text="Modelul patchTST", variable=self.prediction_option, value="PATCHTST")
+        self.predict_patch_radio.pack(anchor="w")
+
 
     def prediction(self):
         if self.downloaded_data is None or self.downloaded_data["results"]==[]:
@@ -159,7 +161,7 @@ class MainWindow(tk.Tk):
         predictions = predict(results=self.downloaded_data["results"], n=months, option=self.prediction_option.get())
 
         if predictions is None:
-            self.show_status(text="Nu exista predicție!")
+            self.show_status(text="Nu există predicție! Predicția nu a returnat niciun raspuns, încearcă un alt istoric de date sau alt model!")
             return
 
         dates= [result["date"] for result in predictions]

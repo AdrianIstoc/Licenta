@@ -4,3 +4,4 @@ sentinelhub==3.11.5
 python-dotenv==1.2.2
 tkcalendar==1.6.1
 pandas==3.0.5
+torch==2.13.0+cpu

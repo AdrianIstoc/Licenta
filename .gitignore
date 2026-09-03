@@ -156,6 +156,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+licenta_env/
 
 # Spyder project settings
 .spyderproject
@@ -220,3 +221,8 @@ __marimo__/
 # Directories
 .idea/
 data/
+
+# Test logs
+prediction_results.txt
+prediction_results*
+models/
