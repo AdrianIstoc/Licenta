@@ -315,10 +315,7 @@ def find_best_patchtst(
             f"lr={learning_rate}"
         )
 
-        def predict_function(train_df, n):
-            return predict_patchtst(df=train_df, n=n, context_length=context_length, patch_length=patch_length, patch_stride=patch_stride, epochs=epochs, learning_rate=learning_rate, batch_size=batch_size, d_model=d_model, n_heads=n_heads, n_layers=n_layers,dropout=dropout)
-
-        backtest_results= backtest_model(df=df, predict_function=predict_function, horizon=horizon)
+        backtest_results= backtest_model(df=df, predict_function=predict_patchtst, horizon=horizon, context_length=context_length, patch_length=patch_length, patch_stride=patch_stride, epochs=epochs, learning_rate=learning_rate, batch_size=batch_size, d_model=d_model, n_heads=n_heads, n_layers=n_layers,dropout=dropout)
         if backtest_results.empty:
             log("No backtest results.")
             continue
