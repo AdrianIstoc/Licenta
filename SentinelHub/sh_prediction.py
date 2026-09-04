@@ -61,7 +61,7 @@ def predict(results, n, option):
     cc = complete_calendar(df)
     acf = add_calendar_features(cc)
 
-    find_best_prediction_model(df=acf, horizon=HORRIZON)
+    # find_best_prediction_model(df=acf, horizon=HORRIZON)
 
     function = PREDICTION_OPTION.get(option)
 

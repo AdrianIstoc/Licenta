@@ -130,7 +130,7 @@ class MainWindow(tk.Tk):
         self.predict_imp_radio = tk.Radiobutton(self.side_menu, text="Modelul îmbunătățit", variable=self.prediction_option, value="IMP")
         self.predict_imp_radio.pack(anchor="w")
 
-        self.predict_patch_radio = tk.Radiobutton(self.side_menu, text="Modelul patchTST", variable=self.prediction_option, value="PATCHTST")
+        self.predict_patch_radio = tk.Radiobutton(self.side_menu, text="Modelul PatchTST", variable=self.prediction_option, value="PATCHTST")
         self.predict_patch_radio.pack(anchor="w")
 
 

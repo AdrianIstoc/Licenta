@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 ALPHA = 0.05
-BETA = 10.0
+BETA = 12.0
 
 
 def predict_month_improved(df, target_date, value_column="value", alpha=ALPHA, beta=BETA):
