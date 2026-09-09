@@ -11,7 +11,6 @@ PREDICTION_OPTION={
     "PATCHTST": predict_patchtst,
 }
 
-HORRIZON = 24
 
 
 def results_to_dataFrame(results):
@@ -61,7 +60,7 @@ def predict(results, n, option):
     cc = complete_calendar(df)
     acf = add_calendar_features(cc)
 
-    # find_best_prediction_model(df=acf, horizon=HORRIZON)
+    # find_best_prediction_model(df=acf)
 
     function = PREDICTION_OPTION.get(option)
 

@@ -6,6 +6,9 @@ from itertools import product
 import pandas as pd
 import numpy as np
 
+
+HORRIZON = 24
+
 def log(text):
     with open("prediction_results.txt", "a", encoding="utf-8") as f:
         f.write(str(text)+"\n")
@@ -89,7 +92,7 @@ def predict_seasonal_naive(df, n):
     return predictions
 
 
-def backtest_model(df, predict_function, horizon=6, **kwargs):
+def backtest_model(df, predict_function, horizon=HORRIZON, **kwargs):
     df = df.copy()
     df = df.sort_values("date").reset_index(drop=True)
 
@@ -219,7 +222,7 @@ def evaluate_backtest(results):
 
 
 
-def find_best_sigma(df, sigmas=(SIGMA,), horizon=6):
+def find_best_sigma(df, sigmas=(SIGMA,), horizon=HORRIZON):
     best_sigma=None
     best_metrics=None
     best_score=float("inf")
@@ -245,7 +248,7 @@ def find_best_sigma(df, sigmas=(SIGMA,), horizon=6):
         "metrics": best_metrics
         }
 
-def find_best_alpha_beta(df, alphas=(ALPHA,), betas=(BETA,), horizon=6):
+def find_best_alpha_beta(df, alphas=(ALPHA,), betas=(BETA,), horizon=HORRIZON):
     best_alpha=None
     best_beta=None
     best_metrics=None
@@ -279,7 +282,7 @@ def find_best_alpha_beta(df, alphas=(ALPHA,), betas=(BETA,), horizon=6):
 
 def find_best_patchtst(
         df,
-        horizon=6,
+        horizon=HORRIZON,
         contexts=(42, 48, 54),
         patch_lengths=(6, 9, 12),
         patch_strides=(3,),
@@ -361,7 +364,7 @@ def find_best_patchtst(
 
     return results_df
 
-def find_best_prediction_model(df, horizon=6):
+def find_best_prediction_model(df, horizon=HORRIZON):
     # sigmas=[0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0,5.5,6.0,6.5,7.0,7.5,8.0,8.5,9.0,9.5,10.0, 12.0, 15.0, 20.0]
     # alphas=[0.05, 0.1, 0.15, 0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0]
     # betas=[0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0,5.5,6.0,6.5,7.0,7.5,8.0,8.5,9.0,9.5,10.0,12.0,15.0,20.0]
